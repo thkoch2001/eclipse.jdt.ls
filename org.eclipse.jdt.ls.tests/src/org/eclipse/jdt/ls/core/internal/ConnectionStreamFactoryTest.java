@@ -14,6 +14,7 @@ package org.eclipse.jdt.ls.core.internal;
 
 import java.io.IOException;
 
+import org.eclipse.jdt.ls.core.internal.ConnectionStreamFactory.LanguageServerStreamProvider;
 import org.eclipse.jdt.ls.core.internal.ConnectionStreamFactory.SocketStreamProvider;
 import org.eclipse.jdt.ls.core.internal.ConnectionStreamFactory.StdIOStreamProvider;
 import org.eclipse.jdt.ls.core.internal.ConnectionStreamFactory.StreamProvider;
@@ -28,6 +29,13 @@ public class ConnectionStreamFactoryTest {
 	@Test
 	public void testStdIOSelection(){
 		checkStreamProvider(StdIOStreamProvider.class);
+	}
+
+	@Test
+	public void testLsServerPortSelection() {
+		System.setProperty("SERVER_PORT", "8888");
+		checkStreamProvider(LanguageServerStreamProvider.class);
+		System.clearProperty("SERVER_PORT");
 	}
 
 	@Test
@@ -53,6 +61,4 @@ public class ConnectionStreamFactoryTest {
 		StreamProvider provider = tested.getSelectedStream();
 		Assert.assertSame(providerClass, provider.getClass());
 	}
-
-
 }

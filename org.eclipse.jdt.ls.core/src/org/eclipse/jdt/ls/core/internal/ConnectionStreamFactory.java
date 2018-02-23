@@ -15,7 +15,14 @@ package org.eclipse.jdt.ls.core.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketAddress;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.Channels;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.core.runtime.Platform;
 
@@ -33,37 +40,76 @@ public class ConnectionStreamFactory {
 		OutputStream getOutputStream() throws IOException;
 	}
 
-	protected final class SocketStreamProvider implements StreamProvider {
-		private final String host;
-		private final int port;
-		private InputStream fInputStream;
-		private OutputStream fOutputStream;
+	protected abstract class InetStreamProvider implements StreamProvider {
+		protected final String host;
+		protected final int port;
+		protected InputStream fInputStream;
+		protected OutputStream fOutputStream;
+		protected AtomicBoolean initialized;
 
-		public SocketStreamProvider(String host, int port) {
+		public InetStreamProvider(String host, int port) {
 			this.host = host;
 			this.port = port;
+			this.initialized = new AtomicBoolean(false);
 		}
 
+		abstract protected void setIOStreams() throws IOException;
+
 		private void initializeConnection() throws IOException {
-			Socket socket = new Socket(host, port);
-			fInputStream = socket.getInputStream();
-			fOutputStream = socket.getOutputStream();
+			setIOStreams();
+			initialized.set(true);
 		}
 
 		@Override
-		public InputStream getInputStream() throws IOException {
-			if (fInputStream == null) {
+		public synchronized InputStream getInputStream() throws IOException {
+			if (!initialized.get()) {
 				initializeConnection();
 			}
 			return fInputStream;
 		}
 
 		@Override
-		public OutputStream getOutputStream() throws IOException {
-			if (fOutputStream == null) {
+		public synchronized OutputStream getOutputStream() throws IOException {
+			if (!initialized.get()) {
 				initializeConnection();
 			}
 			return fOutputStream;
+		}
+	}
+
+	protected final class SocketStreamProvider extends InetStreamProvider {
+
+		public SocketStreamProvider(String host, int port) {
+			super(host, port);
+		}
+
+		@Override
+		protected void setIOStreams() throws IOException {
+			Socket socket = new Socket(host, port);
+			fInputStream = socket.getInputStream();
+			fOutputStream = socket.getOutputStream();
+		}
+	}
+
+	protected final class LanguageServerStreamProvider extends InetStreamProvider {
+
+		public LanguageServerStreamProvider(String host, int port) {
+			super(host, port);
+		}
+
+		@Override
+		protected void setIOStreams() throws IOException {
+			SocketAddress socketAddress = new InetSocketAddress(host, port);
+			AsynchronousServerSocketChannel serverSocket = AsynchronousServerSocketChannel.open().bind(socketAddress);
+			AsynchronousSocketChannel socketChannel;
+			try {
+				socketChannel = serverSocket.accept().get();
+			} catch (InterruptedException | ExecutionException e) {
+				JavaLanguageServerPlugin.logException(e.getMessage(), e);
+				return;
+			}
+			fInputStream = Channels.newInputStream(socketChannel);
+			fOutputStream = Channels.newOutputStream(socketChannel);
 		}
 	}
 
@@ -93,7 +139,7 @@ public class ConnectionStreamFactory {
 	 *
 	 * @return
 	 */
-	public StreamProvider getSelectedStream() {
+	public synchronized StreamProvider getSelectedStream() {
 		if (provider == null) {
 			provider = createProvider();
 		}
@@ -101,9 +147,13 @@ public class ConnectionStreamFactory {
 	}
 
 	private StreamProvider createProvider() {
-		Integer port = JDTEnvironmentUtils.getClientPort();
-		if (port != null) {
-			return new SocketStreamProvider(JDTEnvironmentUtils.getClientHost(), port);
+		final Integer clientPort = JDTEnvironmentUtils.getClientPort();
+		if (clientPort != null) {
+			return new SocketStreamProvider(JDTEnvironmentUtils.getClientHost(), clientPort);
+		}
+		final Integer serverPort = JDTEnvironmentUtils.getServerPort();
+		if (serverPort != null) {
+			return new LanguageServerStreamProvider(JDTEnvironmentUtils.getClientHost(), serverPort);
 		}
 		return new StdIOStreamProvider();
 	}

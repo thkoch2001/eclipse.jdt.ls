@@ -20,7 +20,10 @@ public class JDTEnvironmentUtils {
 
 	public static final String CLIENT_PORT = "CLIENT_PORT";
 	public static final String CLIENT_HOST = "CLIENT_HOST";
-	public static final String DEFAULT_CLIENT_HOST = "localhost";
+	public static final String SERVER_PORT = "SERVER_PORT";
+	public static final String SERVER_HOST = "SERVER_HOST";
+
+	public static final String DEFAULT_HOST = "localhost";
 	public static final String SYNTAX_SERVER_ID = "syntaxserver";
 
 	/**
@@ -40,11 +43,19 @@ public class JDTEnvironmentUtils {
 	 * server instead of the standard IO stream one.
 	 */
 	public static Integer getClientPort() {
-		final String port = Environment.get(CLIENT_PORT);
-		if (port != null) {
-			int clientPort = Integer.parseInt(port);
-			Preconditions.checkState(clientPort >= 1 && clientPort <= 65535, "The port must be an integer between 1 and 65535. It was: '" + port + "'.");
-			return clientPort;
+		return getPort(CLIENT_PORT);
+	}
+
+	public static Integer getServerPort() {
+		return getPort(SERVER_PORT);
+	}
+
+	private static Integer getPort(String envVar) {
+		final String portString = Environment.get(envVar);
+		if (portString != null) {
+			int port = Integer.parseInt(portString);
+			Preconditions.checkState(port >= 1 && port <= 65535, "The port must be an integer between 1 and 65535. It was: '" + portString + "'.");
+			return port;
 		}
 		return null;
 	}
@@ -54,7 +65,15 @@ public class JDTEnvironmentUtils {
 	 * absolutely no effect, if this is set but the {@code CLIENT_PORT} is not.
 	 */
 	public static String getClientHost() {
-		return Environment.get(CLIENT_HOST);
+		return Environment.get(CLIENT_HOST, DEFAULT_HOST);
+	}
+
+	/**
+	 * Returns with the server host. Defaults to {@code localhost} if not set. Has
+	 * absolutely no effect, if this is set but the {@code SERVER_PORT} is not.
+	 */
+	public static String getServerHost() {
+		return Environment.get(SERVER_HOST, DEFAULT_HOST);
 	}
 
 	/**

@@ -115,6 +115,10 @@ by setting up environment variables or alternatively using system properties (e.
 * To use standard streams(stdin, stdout) of the server process do not set any
 of the above environment variables and the server will fall back to standard streams.
 
+* To start a **TCP server**, set the following environment variables before starting the server:
+   * `SERVER_PORT`: the port of the socket to listen to
+   * `SERVER_HOST`: the host of the socket to listen to, defaults to `localhost`.
+
 For socket and named pipes, the client is expected to create the connections
 and wait for the server to connect.
 
